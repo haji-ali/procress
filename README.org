@@ -4,7 +4,7 @@
 #+export_file_name: procress.texi
 #+texinfo_dir_category: Emacs misc features
 #+texinfo_dir_title: Procress: (procress).
-#+texinfo_dir_desc: VERTical Interactive COmpletion.
+#+texinfo_dir_desc: Show progress of a process
 
 * Introduction
 
@@ -22,7 +22,7 @@ enough to accommodate other processes.
 
 #+begin_src emacs-lisp
   (use-package procress
-    :straight (:host github :repo "haji-ali/procress")
+    ;; :straight (:host github :repo "haji-ali/procress")
     :commands tex-procress-mode
     :init
     (add-hook 'LaTeX-mode-hook 'tex-procress-mode)

@@ -29,7 +29,7 @@
 ;; (procress-load-default-svg-images)
 ;; (add-hook 'LaTeX-mode-hook 'tex-procress-mode)
 ;;
-;; The function `procress-load-default-svg-images' can be called to for SVG
+;; The function `procress-load-default-svg-images' can be called for SVG
 ;; images (an animations) to be used to indicate progress.
 ;;
 ;; The mode `tex-procress-mode' shows the progress for AUCTeX-created
