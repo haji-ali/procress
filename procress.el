@@ -2,7 +2,7 @@
 
 ;; Author: Al Haji-Ali <abdo.haji.ali@gmail.com>
 ;; URL: https://github.com/haji-ali/procress.git
-;; Version: 0.1.0
+;; Version: 0.2.0
 ;; Package-Requires: ((emacs "28.0"))
 ;; Keywords: compile, progress, tex, svg
 
@@ -73,9 +73,8 @@ The car is the index used for the cdr.")
   :group 'procress
   :local t)
 
-
 (defun procress-modeline-string ()
-  "Return the modeline string."
+  "Return the modeline string containing the procress indicator."
   (if procress--current-frame
       (propertize
        (funcall
@@ -94,6 +93,7 @@ The car is the index used for the cdr.")
 
 (defun procress-progress ()
   "Update modeline to indicate progress of a process."
+  (procress--cancel-hide-timer)
   (unless (and procress--current-frame
                (eq 'procress-animation-frames
                    (cdr procress--current-frame)))
@@ -106,19 +106,61 @@ The car is the index used for the cdr.")
                (cdr procress--current-frame)))))
   (force-mode-line-update))
 
-(defun procress-start (&rest _)
+(defun procress-hide ()
+  "Hide the procress indicator in the modeline."
+  (setq procress--current-frame nil)
+  (force-mode-line-update)
+  (procress--cancel-hide-timer))
+
+(defun procress-start ()
   "Update modeline to indicate start of a process."
   (setq procress--current-frame nil)
+  (procress--cancel-hide-timer)
   (force-mode-line-update))
 
 (defun procress-done (success)
   "Update modeline to indicate termination of a process.
-SUCCESS is non-nil if the process is successful."
+SUCCESS is non-nil if the process is successful. If successful,
+the procress indicator will be hidden after
+`procress-hide-done-after', if non-nil."
   (setq procress--current-frame
         (if success
             '(0 . procress-success-frames)
           '(0 . procress-failure-frames)))
+  (when success
+    (procress--start-hide-timer))
   (force-mode-line-update))
+
+
+;;;;;;;;;;;;;;;;;;;;;;;; Hide timer specific functions and variables
+(defvar-local procress--timer nil
+  "Timer that hides the procress indicator after calling `procress-done'.")
+
+(defcustom procress-hide-done-after 1
+  "Seconds to show the procress indicator for success."
+  :type 'number
+  :group 'procress)
+
+(defun procress--start-hide-timer ()
+  "Start a timer to hide the procress indicator in the modeline."
+  (procress--cancel-hide-timer)
+  (when procress-hide-done-after
+    (run-with-timer procress-hide-done-after nil
+                    'procress--hide-timer (current-buffer))))
+
+(defun procress--hide-timer (buffer)
+  "Timer function that is called when `procress--hide-timer' is triggered.
+BUFFER is the original buffer where the timer was created."
+  (with-current-buffer buffer
+    (procress-hide))
+  (unless (equal buffer (current-buffer))
+    (procress--cancel-hide-timer)))
+
+(defun procress--cancel-hide-timer ()
+  "Cancel the timer for hiding the procress indicator."
+  (when procress--timer
+    (cancel-timer procress--timer)
+    (setq procress--timer nil)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;; SVG specific functions and constants
 (defconst procress--svg-wrench
@@ -200,6 +242,7 @@ the center. "
            svg 'path :d (cdr (assoc 'path svg-data))
            args)
     (svg-image svg :ascent 'center)))
+
 ;;;;;;;;;;;;;;;;;;;;;; AUCTeX specific functions/modes
 (define-minor-mode tex-procress-mode
   "Show auctex progress."
@@ -212,12 +255,16 @@ the center. "
                       TeX-background-filter)))
     (if tex-procress-mode
         (progn
-          (advice-add 'TeX-run-command :before 'procress-start)
+          (advice-add 'TeX-run-command :before 'procress--tex-start)
           (dolist (fun filter-fun)
             (advice-add fun :after 'procress--tex-progress))
           (advice-add 'TeX-command-sentinel :after 'procress--tex-done)
           (setq mode-line-process
-                '(:eval (list (procress-modeline-string))))
+                '(:eval (list
+                         (with-current-buffer
+                           (find-file-noselect
+                            (TeX-master-file TeX-default-extension))
+                         (procress-modeline-string)))))
           (setq procress-modeline-function
                 (lambda (x)
                   (concat x (with-current-buffer (TeX-active-buffer)
@@ -234,27 +281,50 @@ the center. "
       (setq procress-modeline-function 'identity)))
   (force-mode-line-update))
 
+(defun procress--tex-start (&rest _)
+  "Update modeline to indicate beginning of a tex process.
+Effective only when `tex-procress-mode' is `t'."
+  (when tex-procress-mode
+    (with-current-buffer
+        (with-current-buffer TeX-command-buffer
+          (find-file-noselect
+           (TeX-master-file TeX-default-extension)))
+      (procress-start))
+    ;; Update mode line in case the current buffer is not the master buffer
+    (force-mode-line-update)))
+
 (defun procress--tex-done (process _)
   "Update modeline to indicate termination of a tex process.
 Effective only when `tex-procress-mode' is `t'."
-  (when tex-procress-mode
-    (with-current-buffer (procress--tex-command-buffer process)
-      (procress-done (not (TeX-error-report-has-errors-p))))))
-
-(defun procress--tex-command-buffer (process &rest _)
-  "Returns modeline buffer for tex processes"
-  (with-current-buffer (process-buffer process)
-    TeX-command-buffer))
-
-(defun procress--tex-click ()
-  "Modeline click action for tex buffers"
-  (TeX-recenter-output-buffer nil))
+  (when-let (buf (procress--tex-command-buffer process))
+    (with-current-buffer buf
+      (when tex-procress-mode
+        (procress-done (not (TeX-error-report-has-errors-p)))))
+    ;; Update mode line in case the current buffer is not the master buffer
+    (force-mode-line-update)))
 
 (defun procress--tex-progress (process &rest _)
   "Update modeline to indicate progress of a tex process.
 Effective only when `tex-procress-mode' is `t'."
-  (when tex-procress-mode
-    (with-current-buffer (procress--tex-command-buffer process)
-      (procress-progress))))
+  (when-let (buf (procress--tex-command-buffer process))
+    (with-current-buffer buf
+      (when tex-procress-mode
+        (procress-progress)))
+    ;; Update mode line in case the current buffer is not the master buffer
+    (force-mode-line-update)))
+
+(defun procress--tex-command-buffer (process &rest _)
+  "Returns modeline buffer for tex processes.
+This is the buffer of the master file where the tex process is
+being exectued."
+  (with-current-buffer (process-buffer process)
+    (when (derived-mode-p 'TeX-output-mode)
+      (with-current-buffer TeX-command-buffer
+        (find-file-noselect
+         (TeX-master-file TeX-default-extension))))))
+
+(defun procress--tex-click ()
+  "Modeline click action for tex buffers"
+  (TeX-recenter-output-buffer nil))
 
 (provide 'procress)
