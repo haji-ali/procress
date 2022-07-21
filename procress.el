@@ -2,7 +2,7 @@
 
 ;; Author: Al Haji-Ali <abdo.haji.ali@gmail.com>
 ;; URL: https://github.com/haji-ali/procress.git
-;; Version: 0.2.0
+;; Version: 0.3.0
 ;; Package-Requires: ((emacs "28.0"))
 ;; Keywords: compile, progress, tex, svg
 
@@ -27,12 +27,12 @@
 ;;
 ;; (require 'procress)
 ;; (procress-load-default-svg-images)
-;; (add-hook 'LaTeX-mode-hook 'tex-procress-mode)
+;; (add-hook 'LaTeX-mode-hook #'procress-auctex-mode)
 ;;
 ;; The function `procress-load-default-svg-images' can be called for SVG
 ;; images (an animations) to be used to indicate progress.
 ;;
-;; The mode `tex-procress-mode' shows the progress for AUCTeX-created
+;; The mode `procress-auctex-mode' shows the progress for AUCTeX-created
 ;; processes.
 
 ;;; Code:
@@ -58,7 +58,7 @@ Typically, only first frame is used.")
   "mouse-1: Go to compilation output"
   "String to use for the help-string in the modeline.")
 
-(defvar-local procress-modeline-function 'idenity
+(defvar-local procress-modeline-function #'identity
   "Function to build modeline string.
 Takes the progress string as an argument and should return the
 final string.")
@@ -224,12 +224,12 @@ the center. "
       (let ((transform (plist-get args :transform))
             (rotate-pos (cl-position :rotate args)))
         (when transform
-            ;; Remove rotate and value completelyn
-            (setq args
-                  (cl-delete-if (lambda (_) t)
-                                args
-                                :start rotate-pos
-                                :end (+ 2 rotate-pos)))
+          ;; Remove rotate and value completelyn
+          (setq args
+                (cl-delete-if (lambda (_) t)
+                              args
+                              :start rotate-pos
+                              :end (+ 2 rotate-pos)))
           ;; Replace `:rotate' with `:transform'
           (setf (nth rotate-pos args) :transform))
         (setq args (plist-put args :transform
@@ -244,76 +244,99 @@ the center. "
     (svg-image svg :ascent 'center)))
 
 ;;;;;;;;;;;;;;;;;;;;;; AUCTeX specific functions/modes
-(define-minor-mode tex-procress-mode
+(defcustom procress--auctex-process-start-hook nil
+  "A hook run after a TeX command process is started.
+Passes the handle to created process as the only argument."
+  :type 'hook
+  :group 'procress
+  :local t)
+
+(defcustom procress--auctex-process-filter-hook nil
+  "A hook run when the filtering function of TeX command process is called.
+Passes the process handle and newly outputted string."
+  :type 'hook
+  :group 'procress
+  :local t)
+
+(defcustom  procress--auctex-process-sentinel-hook nil
+  "A hook run when the sentinel function of TeX command process is called.
+Passes the process handle and a status string."
+  :type 'hook
+  :group 'procress
+  :local t)
+
+(defun procress--auctex-run-command@advice (old-fn &rest args)
+  (let ((process (apply old-fn args)))
+    (run-hook-with-args 'procress--auctex-process-start-hook process)
+    process))
+
+(defun procress--auctex-filter@advice (process msg)
+  (run-hook-with-args 'procress--auctex-process-filter-hook process msg))
+
+(defun procress--auctex-command-sentinel@advice (process msg)
+  (run-hook-with-args 'procress--auctex-process-sentinel-hook process msg))
+
+(define-minor-mode procress-auctex-mode
   "Show auctex progress."
   :global nil
   :require 'procress
   (eval-and-compile
     (require 'tex))
-  (let ((filter-fun '(TeX-command-filter
-                      TeX-format-filter
-                      TeX-background-filter)))
-    (if tex-procress-mode
-        (progn
-          (advice-add 'TeX-run-command :before 'procress--tex-start)
-          (dolist (fun filter-fun)
-            (advice-add fun :after 'procress--tex-progress))
-          (advice-add 'TeX-command-sentinel :after 'procress--tex-done)
-          (setq mode-line-process
-                '(:eval (list
-                         (with-current-buffer
+  (advice-add 'TeX-run-command :around #'procress--auctex-run-command@advice)
+  (dolist (fun '(TeX-command-filter TeX-format-filter))
+    (advice-add fun :after #'procress--auctex-filter@advice))
+  (advice-add 'TeX-command-sentinel :after #'procress--auctex-command-sentinel@advice)
+
+  (if procress-auctex-mode
+      (progn
+        (add-hook 'procress--auctex-process-start-hook #'procress--auctex-start)
+        (add-hook 'procress--auctex-process-filter-hook #'procress--auctex-progress)
+        (add-hook 'procress--auctex-process-sentinel-hook #'procress--auctex-done)
+        (add-hook 'procress-click-hook #'procress--auctex-click)
+        (setq mode-line-process
+              '(:eval (list
+                       (with-current-buffer
                            (find-file-noselect
                             (TeX-master-file TeX-default-extension))
                          (procress-modeline-string)))))
-          (setq procress-modeline-function
-                (lambda (x)
-                  (concat x (with-current-buffer (TeX-active-buffer)
-                              TeX-current-page))))
-          (add-hook 'procress-click-hook 'procress--tex-click))
-      ;; Don't remove advice, the functions are conditional on the
-      ;; local mode
-      ;; (advice-remove 'TeX-run-command 'procress-start)
-      ;; (dolist (fun filter-fun)
-      ;;   (advice-remove fun 'procress--tex-progress))
-      ;; (advice-remove 'TeX-command-sentinel 'procress--tex-done)
-      (remove-hook 'procress-click-hook 'procress--tex-click)
-      (setq mode-line-process nil)
-      (setq procress-modeline-function 'identity)))
+        (setq procress-modeline-function
+              (lambda (x)
+                (concat x (with-current-buffer (TeX-active-buffer)
+                            TeX-current-page)))))
+    (remove-hook 'procress--auctex-process-start-hook #'procress--auctex-start)
+    (remove-hook 'procress--auctex-process-filter-hook #'procress--auctex-progress)
+    (remove-hook 'procress--auctex-process-sentinel-hook #'procress--auctex-done)
+    (remove-hook 'procress-click-hook #'procress--auctex-click)
+    (setq mode-line-process nil)
+    (setq procress-modeline-function #'identity))
   (force-mode-line-update))
 
-(defun procress--tex-start (&rest _)
-  "Update modeline to indicate beginning of a tex process.
-Effective only when `tex-procress-mode' is `t'."
-  (when tex-procress-mode
-    (with-current-buffer
-        (with-current-buffer TeX-command-buffer
-          (find-file-noselect
-           (TeX-master-file TeX-default-extension)))
+(defun procress--auctex-start (process)
+  "Update modeline to indicate beginning of a tex process."
+  (when-let (buf (procress--auctex-command-buffer process))
+    (with-current-buffer buf
       (procress-start))
     ;; Update mode line in case the current buffer is not the master buffer
     (force-mode-line-update)))
 
-(defun procress--tex-done (process _)
-  "Update modeline to indicate termination of a tex process.
-Effective only when `tex-procress-mode' is `t'."
-  (when-let (buf (procress--tex-command-buffer process))
+(defun procress--auctex-done (process &rest _)
+  "Update modeline to indicate termination of a tex process."
+  (when-let (buf (procress--auctex-command-buffer process))
     (with-current-buffer buf
-      (when tex-procress-mode
-        (procress-done (not (TeX-error-report-has-errors-p)))))
+      (procress-done (not (TeX-error-report-has-errors-p))))
     ;; Update mode line in case the current buffer is not the master buffer
     (force-mode-line-update)))
 
-(defun procress--tex-progress (process &rest _)
-  "Update modeline to indicate progress of a tex process.
-Effective only when `tex-procress-mode' is `t'."
-  (when-let (buf (procress--tex-command-buffer process))
+(defun procress--auctex-progress (process &rest _)
+  "Update modeline to indicate progress of a tex process."
+  (when-let (buf (procress--auctex-command-buffer process))
     (with-current-buffer buf
-      (when tex-procress-mode
+      (when procress-auctex-mode
         (procress-progress)))
     ;; Update mode line in case the current buffer is not the master buffer
     (force-mode-line-update)))
 
-(defun procress--tex-command-buffer (process &rest _)
+(defun procress--auctex-command-buffer (process)
   "Returns modeline buffer for tex processes.
 This is the buffer of the master file where the tex process is
 being exectued."
@@ -323,7 +346,7 @@ being exectued."
         (find-file-noselect
          (TeX-master-file TeX-default-extension))))))
 
-(defun procress--tex-click ()
+(defun procress--auctex-click ()
   "Modeline click action for tex buffers"
   (TeX-recenter-output-buffer nil))
 

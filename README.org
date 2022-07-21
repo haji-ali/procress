@@ -24,20 +24,19 @@ enough to accommodate other processes.
 #+begin_src emacs-lisp
   (use-package procress
     ;; :straight (:host github :repo "haji-ali/procress")
-    :commands tex-procress-mode
+    :commands procress-auctex-mode
     :init
-    (add-hook 'LaTeX-mode-hook 'tex-procress-mode)
+    (add-hook 'LaTeX-mode-hook #'procress-auctex-mode)
     :config
     (procress-load-default-svg-images))
 #+end_src
 
-Or if you do not have =use-package= then make sure that =process= is in the
-load path and run
+Or if you do not have =use-package=
 
 #+begin_src emacs-lisp
   (require 'procress)
   (procress-load-default-svg-images)
-  (add-hook 'LaTeX-mode-hook 'tex-procress-mode)
+  (add-hook 'LaTeX-mode-hook #'procress-auctex-mode)
 #+end_src
 
 The function ~procress-load-default-svg-images~ loads SVG images (copied from
