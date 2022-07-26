@@ -90,7 +90,19 @@ The car is the index used for the cdr.")
                                  (run-hooks 'procress-click-hook))))))
     ""))
 
-(defun procress-progress ()
+(defun procress-hide ()
+  "Hide the procress indicator in the modeline."
+  (setq procress--current-frame nil)
+  (force-mode-line-update)
+  (procress--cancel-hide-timer))
+
+(defun procress-start (_process)
+  "Update modeline to indicate start of a process."
+  (setq procress--current-frame nil)
+  (procress--cancel-hide-timer)
+  (force-mode-line-update))
+
+(defun procress-progress (_process _msg)
   "Update modeline to indicate progress of a process."
   (procress--cancel-hide-timer)
   (unless (and procress--current-frame
@@ -105,28 +117,18 @@ The car is the index used for the cdr.")
                (cdr procress--current-frame)))))
   (force-mode-line-update))
 
-(defun procress-hide ()
-  "Hide the procress indicator in the modeline."
-  (setq procress--current-frame nil)
-  (force-mode-line-update)
-  (procress--cancel-hide-timer))
-
-(defun procress-start ()
-  "Update modeline to indicate start of a process."
-  (setq procress--current-frame nil)
-  (procress--cancel-hide-timer)
-  (force-mode-line-update))
-
-(defun procress-done (success)
+(defun procress-done (_process status &optional has-errors)
   "Update modeline to indicate termination of a process.
 SUCCESS is non-nil if the process is successful. If successful,
 the procress indicator will be hidden after
 `procress-hide-done-after', if non-nil."
+  (setq has-errors
+        (or has-errors (not (equal status "finished\n"))))
   (setq procress--current-frame
-        (if success
-            '(0 . procress-success-frames)
-          '(0 . procress-failure-frames)))
-  (when success
+        (if has-errors
+            '(0 . procress-failure-frames)
+          '(0 . procress-success-frames)))
+  (unless has-errors
     (procress--start-hide-timer))
   (force-mode-line-update))
 
@@ -295,9 +297,9 @@ Passes the process handle and a status string."
   (if procress-auctex-mode
       (progn
         (add-hook 'procress--auctex-process-start-hook
-                  #'procress--auctex-start nil t)
+                  #'procress-start nil t)
         (add-hook 'procress--auctex-process-filter-hook
-                  #'procress--auctex-progress  nil t)
+                  #'procress-progress nil t)
         (add-hook 'procress--auctex-process-sentinel-hook
                   #'procress--auctex-done nil t)
         (add-hook 'procress-click-hook
@@ -313,9 +315,9 @@ Passes the process handle and a status string."
                 (concat x (with-current-buffer (TeX-active-buffer)
                             TeX-current-page)))))
     (remove-hook 'procress--auctex-process-start-hook
-                 #'procress--auctex-start t)
+                 #'procress-start t)
     (remove-hook 'procress--auctex-process-filter-hook
-                 #'procress--auctex-progress t)
+                 #'procress-progress t)
     (remove-hook 'procress--auctex-process-sentinel-hook
                  #'procress--auctex-done t)
     (remove-hook 'procress-click-hook
@@ -324,24 +326,10 @@ Passes the process handle and a status string."
     (setq procress-modeline-function #'identity))
   (force-mode-line-update))
 
-(defun procress--auctex-start (process)
-  "Update modeline to indicate beginning of a tex process."
-  (when-let (buf (procress--auctex-command-buffer process))
-    (with-current-buffer buf
-      (procress-start))))
-
-(defun procress--auctex-done (process &rest _)
+(defun procress--auctex-done (process msg)
   "Update modeline to indicate termination of a tex process."
-  (when-let (buf (procress--auctex-command-buffer process))
-    (with-current-buffer buf
-      (procress-done (not (TeX-error-report-has-errors-p))))))
-
-(defun procress--auctex-progress (process &rest _)
-  "Update modeline to indicate progress of a tex process."
-  (when-let (buf (procress--auctex-command-buffer process))
-    (with-current-buffer buf
-      (when procress-auctex-mode
-        (procress-progress)))))
+  (procress-done process msg
+                 (TeX-error-report-has-errors-p)))
 
 (defun procress--auctex-command-buffer (process)
   "Returns modeline buffer for tex processes.
