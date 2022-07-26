@@ -70,8 +70,7 @@ The car is the index used for the cdr.")
 (defcustom procress-click-hook nil
   "Hook run after clicking modeline string."
   :type 'hook
-  :group 'procress
-  :local t)
+  :group 'procress)
 
 (defun procress-modeline-string ()
   "Return the modeline string containing the procress indicator."
@@ -248,33 +247,39 @@ the center. "
   "A hook run after a TeX command process is started.
 Passes the handle to created process as the only argument."
   :type 'hook
-  :group 'procress
-  :local t)
+  :group 'procress)
 
 (defcustom procress--auctex-process-filter-hook nil
   "A hook run when the filtering function of TeX command process is called.
 Passes the process handle and newly outputted string."
   :type 'hook
-  :group 'procress
-  :local t)
+  :group 'procress)
 
 (defcustom  procress--auctex-process-sentinel-hook nil
   "A hook run when the sentinel function of TeX command process is called.
 Passes the process handle and a status string."
   :type 'hook
-  :group 'procress
-  :local t)
+  :group 'procress)
 
 (defun procress--auctex-run-command@advice (old-fn &rest args)
   (let ((process (apply old-fn args)))
-    (run-hook-with-args 'procress--auctex-process-start-hook process)
+    (when-let (buf (procress--auctex-command-buffer process))
+      (with-current-buffer buf
+        (run-hook-with-args 'procress--auctex-process-start-hook
+                            process)))
     process))
 
 (defun procress--auctex-filter@advice (process msg)
-  (run-hook-with-args 'procress--auctex-process-filter-hook process msg))
+  (when-let (buf (procress--auctex-command-buffer process))
+    (with-current-buffer buf
+      (run-hook-with-args 'procress--auctex-process-filter-hook
+                          process msg))))
 
 (defun procress--auctex-command-sentinel@advice (process msg)
-  (run-hook-with-args 'procress--auctex-process-sentinel-hook process msg))
+  (when-let (buf (procress--auctex-command-buffer process))
+    (with-current-buffer buf
+      (run-hook-with-args 'procress--auctex-process-sentinel-hook
+                          process msg))))
 
 (define-minor-mode procress-auctex-mode
   "Show auctex progress."
@@ -289,10 +294,14 @@ Passes the process handle and a status string."
 
   (if procress-auctex-mode
       (progn
-        (add-hook 'procress--auctex-process-start-hook #'procress--auctex-start)
-        (add-hook 'procress--auctex-process-filter-hook #'procress--auctex-progress)
-        (add-hook 'procress--auctex-process-sentinel-hook #'procress--auctex-done)
-        (add-hook 'procress-click-hook #'procress--auctex-click)
+        (add-hook 'procress--auctex-process-start-hook
+                  #'procress--auctex-start nil t)
+        (add-hook 'procress--auctex-process-filter-hook
+                  #'procress--auctex-progress  nil t)
+        (add-hook 'procress--auctex-process-sentinel-hook
+                  #'procress--auctex-done nil t)
+        (add-hook 'procress-click-hook
+                  #'procress--auctex-click nil t)
         (setq mode-line-process
               '(:eval (list
                        (with-current-buffer
@@ -303,10 +312,14 @@ Passes the process handle and a status string."
               (lambda (x)
                 (concat x (with-current-buffer (TeX-active-buffer)
                             TeX-current-page)))))
-    (remove-hook 'procress--auctex-process-start-hook #'procress--auctex-start)
-    (remove-hook 'procress--auctex-process-filter-hook #'procress--auctex-progress)
-    (remove-hook 'procress--auctex-process-sentinel-hook #'procress--auctex-done)
-    (remove-hook 'procress-click-hook #'procress--auctex-click)
+    (remove-hook 'procress--auctex-process-start-hook
+                 #'procress--auctex-start t)
+    (remove-hook 'procress--auctex-process-filter-hook
+                 #'procress--auctex-progress t)
+    (remove-hook 'procress--auctex-process-sentinel-hook
+                 #'procress--auctex-done t)
+    (remove-hook 'procress-click-hook
+                 #'procress--auctex-click t)
     (setq mode-line-process nil)
     (setq procress-modeline-function #'identity))
   (force-mode-line-update))
@@ -315,26 +328,20 @@ Passes the process handle and a status string."
   "Update modeline to indicate beginning of a tex process."
   (when-let (buf (procress--auctex-command-buffer process))
     (with-current-buffer buf
-      (procress-start))
-    ;; Update mode line in case the current buffer is not the master buffer
-    (force-mode-line-update)))
+      (procress-start))))
 
 (defun procress--auctex-done (process &rest _)
   "Update modeline to indicate termination of a tex process."
   (when-let (buf (procress--auctex-command-buffer process))
     (with-current-buffer buf
-      (procress-done (not (TeX-error-report-has-errors-p))))
-    ;; Update mode line in case the current buffer is not the master buffer
-    (force-mode-line-update)))
+      (procress-done (not (TeX-error-report-has-errors-p))))))
 
 (defun procress--auctex-progress (process &rest _)
   "Update modeline to indicate progress of a tex process."
   (when-let (buf (procress--auctex-command-buffer process))
     (with-current-buffer buf
       (when procress-auctex-mode
-        (procress-progress)))
-    ;; Update mode line in case the current buffer is not the master buffer
-    (force-mode-line-update)))
+        (procress-progress)))))
 
 (defun procress--auctex-command-buffer (process)
   "Returns modeline buffer for tex processes.
