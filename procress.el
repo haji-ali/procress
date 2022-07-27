@@ -36,6 +36,12 @@
 ;; processes.
 
 ;;; Code:
+
+(defgroup procress nil
+  "Show progress or a process."
+  :group 'tools
+  :group 'processes)
+
 (defconst procress-animation-frames
   (let ((str1 "procress")
         (str2 "-ing"))
@@ -245,19 +251,19 @@ the center. "
     (svg-image svg :ascent 'center)))
 
 ;;;;;;;;;;;;;;;;;;;;;; AUCTeX specific functions/modes
-(defcustom procress--auctex-process-start-hook nil
+(defvar procress-auctex-process-start-hook nil
   "A hook run after a TeX command process is started.
 Passes the handle to created process as the only argument."
   :type 'hook
   :group 'procress)
 
-(defcustom procress--auctex-process-filter-hook nil
+(defcustom procress-auctex-process-filter-hook nil
   "A hook run when the filtering function of TeX command process is called.
 Passes the process handle and newly outputted string."
   :type 'hook
   :group 'procress)
 
-(defcustom  procress--auctex-process-sentinel-hook nil
+(defcustom  procress-auctex-process-sentinel-hook nil
   "A hook run when the sentinel function of TeX command process is called.
 Passes the process handle and a status string."
   :type 'hook
@@ -267,20 +273,20 @@ Passes the process handle and a status string."
   (let ((process (apply old-fn args)))
     (when-let (buf (procress--auctex-command-buffer process))
       (with-current-buffer buf
-        (run-hook-with-args 'procress--auctex-process-start-hook
+        (run-hook-with-args 'procress-auctex-process-start-hook
                             process)))
     process))
 
 (defun procress--auctex-filter@advice (process msg)
   (when-let (buf (procress--auctex-command-buffer process))
     (with-current-buffer buf
-      (run-hook-with-args 'procress--auctex-process-filter-hook
+      (run-hook-with-args 'procress-auctex-process-filter-hook
                           process msg))))
 
 (defun procress--auctex-command-sentinel@advice (process msg)
   (when-let (buf (procress--auctex-command-buffer process))
     (with-current-buffer buf
-      (run-hook-with-args 'procress--auctex-process-sentinel-hook
+      (run-hook-with-args 'procress-auctex-process-sentinel-hook
                           process msg))))
 
 (define-minor-mode procress-auctex-mode
@@ -296,11 +302,11 @@ Passes the process handle and a status string."
 
   (if procress-auctex-mode
       (progn
-        (add-hook 'procress--auctex-process-start-hook
+        (add-hook 'procress-auctex-process-start-hook
                   #'procress-start nil t)
-        (add-hook 'procress--auctex-process-filter-hook
+        (add-hook 'procress-auctex-process-filter-hook
                   #'procress-progress nil t)
-        (add-hook 'procress--auctex-process-sentinel-hook
+        (add-hook 'procress-auctex-process-sentinel-hook
                   #'procress--auctex-done nil t)
         (add-hook 'procress-click-hook
                   #'procress--auctex-click nil t)
@@ -314,11 +320,11 @@ Passes the process handle and a status string."
               (lambda (x)
                 (concat x (with-current-buffer (TeX-active-buffer)
                             TeX-current-page)))))
-    (remove-hook 'procress--auctex-process-start-hook
+    (remove-hook 'procress-auctex-process-start-hook
                  #'procress-start t)
-    (remove-hook 'procress--auctex-process-filter-hook
+    (remove-hook 'procress-auctex-process-filter-hook
                  #'procress-progress t)
-    (remove-hook 'procress--auctex-process-sentinel-hook
+    (remove-hook 'procress-auctex-process-sentinel-hook
                  #'procress--auctex-done t)
     (remove-hook 'procress-click-hook
                  #'procress--auctex-click t)
