@@ -251,7 +251,7 @@ the center. "
     (svg-image svg :ascent 'center)))
 
 ;;;;;;;;;;;;;;;;;;;;;; AUCTeX specific functions/modes
-(defvar procress-auctex-process-start-hook nil
+(defcustom procress-auctex-process-start-hook nil
   "A hook run after a TeX command process is started.
 Passes the handle to created process as the only argument."
   :type 'hook
