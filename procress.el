@@ -1,26 +1,26 @@
 ;;; procress.el --- Process progress  -*- lexical-binding:t -*-
-
+;;
 ;; Author: Al Haji-Ali <abdo.haji.ali@gmail.com>
 ;; URL: https://github.com/haji-ali/procress.git
 ;; Version: 0.3.0
-;; Package-Requires: ((emacs "28.0"))
+;; Package-Requires: ((emacs "27.1"))
 ;; Keywords: compile, progress, tex, svg
-
+;;
 ;; This file is not part of GNU Emacs.
-
+;;
 ;; This program is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
 ;; the Free Software Foundation, either version 3 of the License, or
 ;; (at your option) any later version.
-
+;;
 ;; This program is distributed in the hope that it will be useful,
 ;; but WITHOUT ANY WARRANTY; without even the implied warranty of
 ;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ;; GNU General Public License for more details.
-
+;;
 ;; You should have received a copy of the GNU General Public License
 ;; along with this program.  If not, see <http://www.gnu.org/licenses/>.
-
+;;
 ;;; Commentary:
 ;; This package shows a progress indicator for a process in the modeline.
 ;; Typical usage:
@@ -75,8 +75,7 @@ The car is the index used for the cdr.")
 
 (defcustom procress-click-hook nil
   "Hook run after clicking modeline string."
-  :type 'hook
-  :group 'procress)
+  :type 'hook)
 
 (defun procress-modeline-string ()
   "Return the modeline string containing the procress indicator."
@@ -125,9 +124,10 @@ The car is the index used for the cdr.")
 
 (defun procress-done (_process status &optional has-errors)
   "Update modeline to indicate termination of a process.
-SUCCESS is non-nil if the process is successful. If successful,
-the procress indicator will be hidden after
-`procress-hide-done-after', if non-nil."
+HAS-ERRORS is nil if the process is successful. If
+successful, the procress indicator will be hidden after
+`procress-hide-done-after'. STATUS is the process status which is
+passed to the process sentinel."
   (setq has-errors
         (or has-errors (not (equal status "finished\n"))))
   (setq procress--current-frame
@@ -145,8 +145,7 @@ the procress indicator will be hidden after
 
 (defcustom procress-hide-done-after 1
   "Seconds to show the procress indicator for success."
-  :type 'number
-  :group 'procress)
+  :type 'number)
 
 (defun procress--start-hide-timer ()
   "Start a timer to hide the procress indicator in the modeline."
@@ -222,7 +221,7 @@ Assumes that Emacs is compiled with SVG support."
 The SVG-DATA is an alist containing `width', `height' and `path'.
 Creates an `svg-node' with the `path' and passes ARGS.
 ARGS may contain `:rotate' to rotate the SVG image relative to
-the center. "
+the center."
   (let* ((width  (cdr (assoc 'width svg-data)))
          (height (cdr (assoc 'height svg-data)))
          (svg (svg-create width height))
@@ -254,22 +253,22 @@ the center. "
 (defcustom procress-auctex-process-start-hook nil
   "A hook run after a TeX command process is started.
 Passes the handle to created process as the only argument."
-  :type 'hook
-  :group 'procress)
+  :type 'hook)
 
 (defcustom procress-auctex-process-filter-hook nil
   "A hook run when the filtering function of TeX command process is called.
 Passes the process handle and newly outputted string."
-  :type 'hook
-  :group 'procress)
+  :type 'hook)
 
 (defcustom  procress-auctex-process-sentinel-hook nil
   "A hook run when the sentinel function of TeX command process is called.
 Passes the process handle and a status string."
-  :type 'hook
-  :group 'procress)
+  :type 'hook)
 
 (defun procress--auctex-run-command@advice (old-fn &rest args)
+  "Advice for AUCTeX's `TeX-run-command'.
+OLD-FN refers to the original furnishing and ARGS are its
+arguments."
   (let ((process (apply old-fn args)))
     (when-let (buf (procress--auctex-command-buffer process))
       (with-current-buffer buf
@@ -278,12 +277,16 @@ Passes the process handle and a status string."
     process))
 
 (defun procress--auctex-filter@advice (process msg)
+  "Advice for filter functions of AUCTeX processes.
+PROCESS and MSG are the arguments passed to the process filter."
   (when-let (buf (procress--auctex-command-buffer process))
     (with-current-buffer buf
       (run-hook-with-args 'procress-auctex-process-filter-hook
                           process msg))))
 
 (defun procress--auctex-command-sentinel@advice (process msg)
+  "Advice for sentinel functions of AUCTeX processes.
+PROCESS and MSG are the arguments passed to the process sentinel."
   (when-let (buf (procress--auctex-command-buffer process))
     (with-current-buffer buf
       (run-hook-with-args 'procress-auctex-process-sentinel-hook
@@ -333,14 +336,16 @@ Passes the process handle and a status string."
   (force-mode-line-update))
 
 (defun procress--auctex-done (process msg)
-  "Update modeline to indicate termination of a tex process."
+  "Update modeline to indicate termination of a tex process.
+PROCESS is the process handle and MSG is the status string from
+the process sentinel."
   (procress-done process msg
                  (TeX-error-report-has-errors-p)))
 
 (defun procress--auctex-command-buffer (process)
-  "Returns modeline buffer for tex processes.
-This is the buffer of the master file where the tex process is
-being exectued."
+  "Return modeline buffer for tex processes.
+This is the buffer of the master file where the tex PROCESS is
+being executed."
   (with-current-buffer (process-buffer process)
     (when (derived-mode-p 'TeX-output-mode)
       (with-current-buffer TeX-command-buffer
@@ -348,7 +353,9 @@ being exectued."
          (TeX-master-file TeX-default-extension))))))
 
 (defun procress--auctex-click ()
-  "Modeline click action for tex buffers"
+  "Modeline click action for tex buffers."
   (TeX-recenter-output-buffer nil))
 
 (provide 'procress)
+
+;;; procress.el ends here
