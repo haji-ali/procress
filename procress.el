@@ -73,6 +73,10 @@ final string.")
   "The currently displayed frame.
 The car is the index used for the cdr.")
 
+
+(defvar procress-update-function 'force-mode-line-update
+  "Function to call to after update of procress state.")
+
 (defcustom procress-click-hook nil
   "Hook run after clicking modeline string."
   :type 'hook)
@@ -98,14 +102,14 @@ The car is the index used for the cdr.")
 (defun procress-hide ()
   "Hide the procress indicator in the modeline."
   (setq procress--current-frame nil)
-  (force-mode-line-update)
+  (funcall procress-update-function)
   (procress--cancel-hide-timer))
 
 (defun procress-start (_process)
   "Update modeline to indicate start of a process."
   (setq procress--current-frame nil)
   (procress--cancel-hide-timer)
-  (force-mode-line-update))
+  (funcall procress-update-function))
 
 (defun procress-progress (_process _msg)
   "Update modeline to indicate progress of a process."
@@ -120,7 +124,7 @@ The car is the index used for the cdr.")
              (length
               (symbol-value
                (cdr procress--current-frame)))))
-  (force-mode-line-update))
+  (funcall procress-update-function))
 
 (defun procress-done (_process status &optional has-errors)
   "Update modeline to indicate termination of a process.
@@ -136,8 +140,13 @@ passed to the process sentinel."
           '(0 . procress-success-frames)))
   (unless has-errors
     (procress--start-hide-timer))
-  (force-mode-line-update))
+  (funcall procress-update-function))
 
+(defun procress-force-mode-line-update ()
+  "Calls `force-mode-line-update' on all visible buffers."
+  (dolist (win (window-list))
+    (with-current-buffer (window-buffer win)
+      (force-mode-line-update))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;; Hide timer specific functions and variables
 (defvar-local procress--timer nil
@@ -313,6 +322,8 @@ PROCESS and MSG are the arguments passed to the process sentinel."
                   #'procress--auctex-done nil t)
         (add-hook 'procress-click-hook
                   #'procress--auctex-click nil t)
+        (setq-local procress-update-function
+                    #'procress-force-mode-line-update)
         (setq mode-line-process
               '(:eval (list
                        (with-current-buffer
@@ -333,7 +344,7 @@ PROCESS and MSG are the arguments passed to the process sentinel."
                  #'procress--auctex-click t)
     (setq mode-line-process nil)
     (setq procress-modeline-function #'identity))
-  (force-mode-line-update))
+  (funcall procress-update-function))
 
 (defun procress--auctex-done (process msg)
   "Update modeline to indicate termination of a tex process.
