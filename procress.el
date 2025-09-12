@@ -81,6 +81,12 @@ The car is the index used for the cdr.")
   "Hook run after clicking modeline string."
   :type 'hook)
 
+(defcustom procress-process-filter-function
+  'procress-process-filter-default
+  "Function to determine if a process should display procress or not.
+Accepts a single argument, the process handle."
+  :type 'hook)
+
 (defun procress-modeline-string ()
   "Return the modeline string containing the procress indicator."
   (if procress--current-frame
@@ -143,7 +149,7 @@ passed to the process sentinel."
   (funcall procress-update-function))
 
 (defun procress-force-mode-line-update ()
-  "Calls `force-mode-line-update' on all visible buffers."
+  "Call `force-mode-line-update' on all visible buffers."
   (dolist (win (window-list))
     (with-current-buffer (window-buffer win)
       (force-mode-line-update))))
@@ -357,11 +363,16 @@ the process sentinel."
   "Return modeline buffer for tex processes.
 This is the buffer of the master file where the tex PROCESS is
 being executed."
-  (with-current-buffer (process-buffer process)
-    (when (derived-mode-p 'TeX-output-mode)
-      (with-current-buffer TeX-command-buffer
-        (find-file-noselect
-         (TeX-master-file TeX-default-extension))))))
+  (when (funcall procress-process-filter-function process)
+    (with-current-buffer (process-buffer process)
+      (when (derived-mode-p 'TeX-output-mode)
+        (with-current-buffer TeX-command-buffer
+          (find-file-noselect
+           (TeX-master-file TeX-default-extension)))))))
+
+(defun procress-process-filter-default (process)
+  "Check that PROCESS is not a preview process."
+  (not (string-prefix-p "Preview" (process-name process))))
 
 (defun procress--auctex-click ()
   "Modeline click action for tex buffers."
