@@ -3,7 +3,7 @@
 ;; Author: Al Haji-Ali <abdo.haji.ali@gmail.com>
 ;; URL: https://github.com/haji-ali/procress.git
 ;; Version: 0.3.0
-;; Package-Requires: ((emacs "27.1"))
+;; Package-Requires: ((emacs "27.1") (auctex "13.0"))
 ;; Keywords: compile, progress, tex, svg
 ;;
 ;; This file is not part of GNU Emacs.
