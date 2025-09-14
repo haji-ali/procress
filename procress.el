@@ -74,7 +74,7 @@ final string.")
 The car is the index used for the cdr.")
 
 
-(defvar procress-update-function 'force-mode-line-update
+(defvar procress-update-function #'force-mode-line-update
   "Function to call to after update of procress state.")
 
 (defcustom procress-click-hook nil
@@ -82,7 +82,7 @@ The car is the index used for the cdr.")
   :type 'hook)
 
 (defcustom procress-process-filter-function
-  'procress-process-filter-default
+  #'procress-process-filter-default
   "Function to determine if a process should display procress or not.
 Accepts a single argument, the process handle."
   :type 'hook)
@@ -167,7 +167,7 @@ passed to the process sentinel."
   (procress--cancel-hide-timer)
   (when procress-hide-done-after
     (run-with-timer procress-hide-done-after nil
-                    'procress--hide-timer (current-buffer))))
+                    #'procress--hide-timer (current-buffer))))
 
 (defun procress--hide-timer (buffer)
   "Timer function that is called when `procress--hide-timer' is triggered.
@@ -313,10 +313,10 @@ PROCESS and MSG are the arguments passed to the process sentinel."
   :require 'procress
   (eval-and-compile
     (require 'tex))
-  (advice-add 'TeX-run-command :around #'procress--auctex-run-command@advice)
+  (advice-add #'TeX-run-command :around #'procress--auctex-run-command@advice)
   (dolist (fun '(TeX-command-filter TeX-format-filter))
     (advice-add fun :after #'procress--auctex-filter@advice))
-  (advice-add 'TeX-command-sentinel :after #'procress--auctex-command-sentinel@advice)
+  (advice-add #'TeX-command-sentinel :after #'procress--auctex-command-sentinel@advice)
 
   (if procress-auctex-mode
       (progn
