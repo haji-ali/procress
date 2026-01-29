@@ -285,7 +285,7 @@ Passes the process handle and a status string."
 OLD-FN refers to the original furnishing and ARGS are its
 arguments."
   (let ((process (apply old-fn args)))
-    (when-let (buf (procress--auctex-command-buffer process))
+    (when-let* ((buf (procress--auctex-command-buffer process)))
       (with-current-buffer buf
         (run-hook-with-args 'procress-auctex-process-start-hook
                             process)))
@@ -294,7 +294,7 @@ arguments."
 (defun procress--auctex-filter@advice (process msg)
   "Advice for filter functions of AUCTeX processes.
 PROCESS and MSG are the arguments passed to the process filter."
-  (when-let (buf (procress--auctex-command-buffer process))
+  (when-let* ((buf (procress--auctex-command-buffer process)))
     (with-current-buffer buf
       (run-hook-with-args 'procress-auctex-process-filter-hook
                           process msg))))
@@ -302,7 +302,7 @@ PROCESS and MSG are the arguments passed to the process filter."
 (defun procress--auctex-command-sentinel@advice (process msg)
   "Advice for sentinel functions of AUCTeX processes.
 PROCESS and MSG are the arguments passed to the process sentinel."
-  (when-let (buf (procress--auctex-command-buffer process))
+  (when-let* ((buf (procress--auctex-command-buffer process)))
     (with-current-buffer buf
       (run-hook-with-args 'procress-auctex-process-sentinel-hook
                           process msg))))
