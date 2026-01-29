@@ -113,24 +113,26 @@ Accepts a single argument, the process handle."
 
 (defun procress-start (_process)
   "Update modeline to indicate start of a process."
-  (setq procress--current-frame nil)
-  (procress--cancel-hide-timer)
-  (funcall procress-update-function))
+  (unless TeX-current-process-region-p
+    (setq procress--current-frame nil)
+    (procress--cancel-hide-timer)
+    (funcall procress-update-function)))
 
 (defun procress-progress (_process _msg)
   "Update modeline to indicate progress of a process."
-  (procress--cancel-hide-timer)
-  (unless (and procress--current-frame
-               (eq 'procress-animation-frames
-                   (cdr procress--current-frame)))
-    (setq procress--current-frame
-          '(0 . procress-animation-frames)))
-  (setcar procress--current-frame
-          (% (+ 1 (car procress--current-frame))
-             (length
-              (symbol-value
-               (cdr procress--current-frame)))))
-  (funcall procress-update-function))
+  (unless TeX-current-process-region-p
+    (procress--cancel-hide-timer)
+    (unless (and procress--current-frame
+                 (eq 'procress-animation-frames
+                     (cdr procress--current-frame)))
+      (setq procress--current-frame
+            '(0 . procress-animation-frames)))
+    (setcar procress--current-frame
+            (% (+ 1 (car procress--current-frame))
+               (length
+                (symbol-value
+                 (cdr procress--current-frame)))))
+    (funcall procress-update-function)))
 
 (defun procress-done (_process status &optional has-errors)
   "Update modeline to indicate termination of a process.
@@ -138,15 +140,16 @@ HAS-ERRORS is nil if the process is successful. If
 successful, the procress indicator will be hidden after
 `procress-hide-done-after'. STATUS is the process status which is
 passed to the process sentinel."
-  (setq has-errors
-        (or has-errors (not (equal status "finished\n"))))
-  (setq procress--current-frame
-        (if has-errors
-            '(0 . procress-failure-frames)
-          '(0 . procress-success-frames)))
-  (unless has-errors
-    (procress--start-hide-timer))
-  (funcall procress-update-function))
+  (unless TeX-current-process-region-p
+    (setq has-errors
+          (or has-errors (not (equal status "finished\n"))))
+    (setq procress--current-frame
+          (if has-errors
+              '(0 . procress-failure-frames)
+            '(0 . procress-success-frames)))
+    (unless has-errors
+      (procress--start-hide-timer))
+    (funcall procress-update-function)))
 
 (defun procress-force-mode-line-update ()
   "Call `force-mode-line-update' on all visible buffers."
