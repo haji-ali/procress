@@ -334,11 +334,11 @@ PROCESS and MSG are the arguments passed to the process sentinel."
         (setq-local procress-update-function
                     #'procress-force-mode-line-update)
         (setq mode-line-process
-              '(:eval (list
-                       (with-current-buffer
-                           (find-file-noselect
-                            (TeX-master-file TeX-default-extension))
-                         (procress-modeline-string)))))
+              '(:eval (when-let*
+                          ((buf (get-file-buffer
+                                 (TeX-master-file TeX-default-extension))))
+                        (list (with-current-buffer buf
+                                (procress-modeline-string))))))
         (setq procress-modeline-function
               (lambda (x)
                 (concat x (with-current-buffer (TeX-active-buffer)
@@ -370,7 +370,7 @@ being executed."
     (with-current-buffer (process-buffer process)
       (when (derived-mode-p 'TeX-output-mode)
         (with-current-buffer TeX-command-buffer
-          (find-file-noselect
+          (get-file-buffer
            (TeX-master-file TeX-default-extension)))))))
 
 (defun procress-process-filter-default (process)
